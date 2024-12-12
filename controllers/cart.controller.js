@@ -161,10 +161,51 @@ const checkoutCart = async (req, res) => {
     }
 };
 
+const getCartByCompany = async (req, res) => {
+    try {
+        const { companyId } = req.params;
+        const carts = await Cart.find({})
+            .populate('items.product') // Populamos productos para acceder a la información completa
+            .populate('user', 'firstName lastName'); // Populamos usuario para obtener su nombre
+        if (!carts || carts.length === 0) {
+            return res.status(404).json({ message: 'No hay carritos disponibles' });
+        }
+        const filteredCarts = carts.flatMap(cart => {
+            const companyProducts = cart.items
+                .filter(item => item.product.company.toString() === companyId)
+                .map(item => ({
+                    cartId: cart._id, // Incluimos el ID del carrito
+                    userName: `${cart.user.firstName} ${cart.user.lastName}`,
+                    productName: item.product.name,
+                    productCategory: item.product.category,
+                    price: item.product.price, // Usamos el precio del producto
+                    quantity: item.quantity,
+                    total: item.product.price * item.quantity, // Calculamos el total
+                    createdAt: cart.createdAt,
+                    updatedAt: cart.updatedAt
+                }));
+            return companyProducts.length > 0 ? companyProducts : [];
+        });
+        if (filteredCarts.length === 0) {
+            return res.status(404).json({ message: 'No se encontraron productos para esta compañía' });
+        }
+        filteredCarts.sort((a, b) => {
+            if (a.userName < b.userName) return -1;
+            if (a.userName > b.userName) return 1;
+            return a.productName.localeCompare(b.productName);
+        });
+        res.status(200).json(filteredCarts);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: 'Error al obtener los carritos' });
+    }
+};
+
 module.exports = {
     addToCart,
     getCartById,
     removeFromCart,
     checkoutCart,
-    clearCart
+    clearCart,
+    getCartByCompany
 };
